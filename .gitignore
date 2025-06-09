@@ -1,0 +1,7 @@
+/minio_data/certs/private.key
+/minio_data/certs/public.crt
+/minio_data/certs/CAs/
+/nginx/certs/fullchain.pem
+/nginx/certs/privkey.pem
+/.env
+/.idea/

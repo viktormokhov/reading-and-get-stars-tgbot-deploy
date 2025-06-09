@@ -1,0 +1,225 @@
+services:
+  postgres:
+    image: postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - /home/admin/tg-bot/data:/var/lib/postgresql/data
+      - /home/admin/tg-bot/data/backups:/backups
+    ports:
+      - "127.0.0.1:5432:5432"
+    networks:
+      tg-bot-net:
+        ipv4_address: 10.10.10.5
+    command: ["postgres", "-c", "listen_addresses=0.0.0.0"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $POSTGRES_USER -d $POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10"
+        max-file: "5"
+
+  mongo:
+    image: mongo
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_INITDB_ROOT_USERNAME}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_INITDB_ROOT_PASSWORD}
+    volumes:
+      - ./mongo_data:/data/db
+      - ./mongo_data/backups:/backups
+    ports:
+      - "127.0.0.1:27017:27017"
+    networks:
+      tg-bot-net:
+        ipv4_address: 10.10.10.6
+    healthcheck:
+      test: >
+        bash -c 'mongosh --username "$MONGO_INITDB_ROOT_USERNAME" --password "$MONGO_INITDB_ROOT_PASSWORD" --authenticationDatabase "admin" --eval "db.adminCommand(\"ping\")"'      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    environment:
+      - DISABLE_IPV6=true
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
+      - ./nginx/logs:/var/log/nginx
+      - nginx-cache:/var/cache/nginx
+    tmpfs:
+      - /tmp
+      - /var/run
+    ports:
+      - "8443:8443"
+    depends_on:
+#      - frontend
+      - backend
+    networks:
+      tg-bot-net:
+        ipv4_address: 10.10.10.4
+    healthcheck:
+      test: [
+        "CMD",
+        "wget",
+        "--no-check-certificate",
+        "-qO-",
+        "https://0.0.0.0:8443/health"
+      ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+#    read_only: true
+
+  backend:
+    build: ./backend
+    env_file:
+      - .env
+    environment:
+      BACKEND_API_KEY: ${BACKEND_API_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      mongo:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8000:8000"
+      - "127.0.0.1:7721:22"
+    networks:
+      tg-bot-net:
+        ipv4_address: 10.10.10.2
+    dns:
+      - 8.8.8.8
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+    healthcheck:
+      test:
+       [
+         "CMD-SHELL",
+         "curl -f -H \"x-api-key: $BACKEND_API_KEY\" http://localhost:8000/api/v1/health/check"
+       ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NODE_DEV_MODE: ${NODE_DEV_MODE:-false}
+    env_file:
+      - .env
+    depends_on:
+      - backend
+    networks:
+      tg-bot-net:
+        ipv4_address: 10.10.10.3
+    dns:
+      - 8.8.8.8
+    restart: unless-stopped
+    environment:
+      NODE_DEV_MODE: ${NODE_DEV_MODE}
+      BACKEND_API_KEY: ${BACKEND_API_KEY}
+      TG_BOT_TOKEN: ${TG_BOT_TOKEN}
+      TG_ADMIN_ID: ${TG_ADMIN_ID}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      XAI_API_KEY: ${XAI_API_KEY}
+      HUGGINGFACE_API_KEY: ${HUGGINGFACE_API_KEY}
+    ports:
+      - "3000:3000"    # Для разработки нужен наружу!
+#    volumes:
+#      - ./frontend:/app
+#      - /app/node_modules   # Не затирать node_modules контейнера
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  minio:
+    image: minio/minio
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    volumes:
+      - ./minio_data:/data
+      - ./minio_data/certs:/root/.minio/certs
+      - ./minio_data/config:/root/.minio
+    ports:
+      - "127.0.0.1:9000:9000"    # S3 API
+      - "127.0.0.1:9001:9001"    # Console UI
+    networks:
+      tg-bot-net:
+        ipv4_address: 10.10.10.7
+    command: server --console-address ":9001" /data
+    healthcheck:
+      test: ["CMD", "curl", "-fk", "https://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  redis:
+    image: redis
+    restart: unless-stopped
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD}
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}"]
+    volumes:
+      - ./redis_data:/data
+    ports:
+      - "127.0.0.1:6379:6379"
+    networks:
+      tg-bot-net:
+        ipv4_address: 10.10.10.8
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+networks:
+  tg-bot-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 10.10.10.0/28
+volumes:
+   nginx-cache:
