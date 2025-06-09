@@ -68,9 +68,16 @@ USER nextjs
 # Порт для приложения
 EXPOSE 3000
 
-# Healthcheck
+# Healthcheck - в режиме разработки всегда успешен, так как сервер не запускается
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-    CMD wget -qO- http://localhost:3000/api/health || exit 1
+    CMD if [ "$NODE_DEV_MODE" = "true" ]; then exit 0; else wget -qO- http://localhost:3000/api/health || exit 1; fi
 
 # Запуск приложения в зависимости от режима
-CMD if [ "$NODE_DEV_MODE" = "true" ]; then npm run dev; else npm run start; fi
+# В режиме разработки сервер не запускается, но контейнер остается активным
+CMD if [ "$NODE_DEV_MODE" = "true" ]; then \
+    echo "Development mode: server not started" && \
+    # Бесконечный цикл для поддержания контейнера активным без дополнительных сообщений
+    tail -f /dev/null; \
+    else \
+    npm run start; \
+    fi

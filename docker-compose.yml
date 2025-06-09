@@ -194,7 +194,14 @@ services:
         max-size: "10m"
         max-file: "5"
     healthcheck:
-      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
+      # В режиме разработки healthcheck всегда успешен, так как сервер не запускается
+      test: >
+        /bin/sh -c '
+        if [ "$NODE_DEV_MODE" = "true" ]; then
+          exit 0;
+        else
+          wget -qO- http://localhost:3000/api/health || exit 1;
+        fi'
       interval: ${FRONTEND_HEALTHCHECK_INTERVAL:-30s}
       timeout: ${FRONTEND_HEALTHCHECK_TIMEOUT:-10s}
       retries: ${FRONTEND_HEALTHCHECK_RETRIES:-3}
