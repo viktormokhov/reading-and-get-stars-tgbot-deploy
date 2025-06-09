@@ -1,20 +1,72 @@
-FROM node:22-alpine AS base
+# Этап сборки зависимостей
+FROM node:22-alpine AS deps
 WORKDIR /app
 
-# Аргумент для режима
+# Аргументы для режима разработки
 ARG NODE_DEV_MODE=false
-ENV NODE_DEV_MODE=${NODE_DEV_MODE}
+ARG INSTALL_DEV_TOOLS=false
 
+# Копирование только файлов зависимостей
 COPY package.json package-lock.json ./
 
-RUN npm install -g npm@latest
-RUN npm install
+# Установка зависимостей с учетом режима
+RUN npm install -g npm@latest && \
+    if [ "$NODE_DEV_MODE" = "true" ]; then \
+        npm install; \
+    else \
+        npm install --only=production; \
+    fi
 
+# Этап сборки (только для production)
+FROM deps AS builder
+WORKDIR /app
+
+# Копирование исходного кода
 COPY . .
 
 # Сборка production только если не dev
 RUN if [ "$NODE_DEV_MODE" != "true" ]; then npm run build; fi
 
+# Установка инструментов разработки (если нужно)
+RUN if [ "$INSTALL_DEV_TOOLS" = "true" ]; then \
+        apk add --no-cache bash curl vim nano; \
+    fi
+
+# Финальный образ
+FROM node:22-alpine AS runner
+WORKDIR /app
+
+# Переменные окружения
+ARG NODE_DEV_MODE=false
+ENV NODE_DEV_MODE=${NODE_DEV_MODE}
+ENV NODE_ENV=${NODE_DEV_MODE:+development}
+ENV NODE_ENV=${NODE_ENV:-production}
+
+# Копирование зависимостей и сборки из предыдущих этапов
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=builder /app/package.json ./package.json
+
+# Копирование исходного кода или собранных файлов в зависимости от режима
+COPY --from=builder /app/src ./src
+COPY --from=builder /app/public ./public
+RUN if [ "$NODE_DEV_MODE" != "true" ] && [ -d "/app/build" ]; then \
+        cp -r /app/build ./build; \
+    fi
+
+# Безопасность: запуск от непривилегированного пользователя
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S nextjs -u 1001 && \
+    chown -R nextjs:nodejs /app
+
+# Переключение на непривилегированного пользователя (только в production)
+USER nextjs
+
+# Порт для приложения
 EXPOSE 3000
 
+# Healthcheck
+HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
+    CMD wget -qO- http://localhost:3000/api/health || exit 1
+
+# Запуск приложения в зависимости от режима
 CMD if [ "$NODE_DEV_MODE" = "true" ]; then npm run dev; else npm run start; fi
