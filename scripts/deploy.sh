@@ -3,6 +3,14 @@
 # Скрипт для развертывания проекта
 # Использование: ./deploy.sh [--prod|--dev]
 
+# Определение пути к корневой директории проекта
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+
+# Переход в корневую директорию проекта
+cd "$PROJECT_ROOT"
+echo "Рабочая директория: $(pwd)"
+
 # Настройка переменных
 MODE="prod"  # По умолчанию - продакшн режим
 
@@ -20,12 +28,12 @@ elif [ ! -z "$1" ]; then
 fi
 
 # Проверка наличия Docker и Docker Compose
-if ! command -v docker &> /dev/null; then
+if ! docker --version > /dev/null 2>&1; then
     echo "Docker не установлен. Установите Docker перед запуском скрипта."
     exit 1
 fi
 
-if ! command -v docker-compose &> /dev/null; then
+if ! docker compose --version > /dev/null 2>&1; then
     echo "Docker Compose не установлен. Установите Docker Compose перед запуском скрипта."
     exit 1
 fi
@@ -46,7 +54,7 @@ fi
 # Настройка режима разработки в .env
 if [ "$MODE" == "dev" ]; then
     echo "Настройка переменных окружения для режима разработки..."
-    
+
     # Обновление .env для режима разработки
     sed -i 's/^DEV_MODE=.*/DEV_MODE=true/' .env
     sed -i 's/^NODE_DEV_MODE=.*/NODE_DEV_MODE=true/' .env
@@ -56,11 +64,11 @@ if [ "$MODE" == "dev" ]; then
     sed -i 's/^BACKEND_RUN_APP_IN_DEV=.*/BACKEND_RUN_APP_IN_DEV=true/' .env
     sed -i 's/^FRONTEND_DEV_TOOLS=.*/FRONTEND_DEV_TOOLS=true/' .env
     sed -i 's/^FRONTEND_EXPOSE_PORT=.*/FRONTEND_EXPOSE_PORT=0.0.0.0/' .env
-    
+
     echo "Режим разработки настроен."
 else
     echo "Настройка переменных окружения для продакшн режима..."
-    
+
     # Обновление .env для продакшн режима
     sed -i 's/^DEV_MODE=.*/DEV_MODE=false/' .env
     sed -i 's/^NODE_DEV_MODE=.*/NODE_DEV_MODE=false/' .env
@@ -70,7 +78,7 @@ else
     sed -i 's/^BACKEND_RUN_APP_IN_DEV=.*/BACKEND_RUN_APP_IN_DEV=false/' .env
     sed -i 's/^FRONTEND_DEV_TOOLS=.*/FRONTEND_DEV_TOOLS=false/' .env
     sed -i 's/^FRONTEND_EXPOSE_PORT=.*/FRONTEND_EXPOSE_PORT=127.0.0.1/' .env
-    
+
     echo "Продакшн режим настроен."
 fi
 
@@ -80,7 +88,7 @@ echo "Генерация сертификатов..."
 # MinIO сертификаты
 if [ ! -f ./minio_data/certs/private.key ] || [ ! -f ./minio_data/certs/public.crt ]; then
     echo "Генерация сертификатов для MinIO..."
-    
+
     # Проверка наличия скрипта
     if [ -f ./minio_data/certs/create_certs.sh ]; then
         chmod +x ./minio_data/certs/create_certs.sh
@@ -96,7 +104,7 @@ fi
 # Nginx сертификаты
 if [ ! -f ./nginx/certs/privkey.pem ] || [ ! -f ./nginx/certs/fullchain.pem ]; then
     echo "Генерация сертификатов для Nginx..."
-    
+
     # Проверка наличия скрипта
     if [ -f ./nginx/certs/create_certs.sh ]; then
         chmod +x ./nginx/certs/create_certs.sh
@@ -115,15 +123,19 @@ mkdir -p ./data
 mkdir -p ./mongo_data/backups
 mkdir -p ./redis_data
 mkdir -p ./minio_data/config
+mkdir -p ./empty-dir
+
+# Примечание: Проверки директорий backend/src и frontend/src не требуются,
+# так как исходный код должен быть скопирован скриптом rebuild.sh
 
 # Запуск контейнеров
 echo "Запуск контейнеров..."
-docker-compose down
-docker-compose up -d
+docker compose down
+docker compose up -d
 
 # Проверка статуса
 echo "Проверка статуса контейнеров..."
-docker-compose ps
+docker compose ps
 
 echo "Развертывание завершено!"
 if [ "$MODE" == "dev" ]; then
@@ -134,5 +146,5 @@ else
     echo "Проект запущен в продакшн режиме."
 fi
 
-echo "Для просмотра логов используйте: docker-compose logs -f"
-echo "Для остановки проекта используйте: docker-compose down"
+echo "Для просмотра логов используйте: docker compose logs -f"
+echo "Для остановки проекта используйте: docker compose down"

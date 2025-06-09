@@ -1,22 +1,3 @@
-FROM python:3.12-slim-bullseye AS builder
-
-# Установка только необходимых зависимостей для сборки
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc \
-    && rm -rf /var/lib/apt/lists/*
-
-WORKDIR /build
-
-# Установка Poetry
-RUN pip install --no-cache-dir poetry
-
-# Копирование только файлов зависимостей
-COPY pyproject.toml poetry.lock README.md ./
-
-# Экспорт зависимостей в requirements.txt для более эффективной установки
-RUN poetry export -f requirements.txt --output requirements.txt --only main
-
-# Финальный образ
 FROM python:3.12-slim-bullseye
 
 # Установка только необходимых пакетов
@@ -27,9 +8,9 @@ ARG INSTALL_SSH=false
 ENV INSTALL_DEV_TOOLS=${INSTALL_DEV_TOOLS}
 ENV INSTALL_SSH=${INSTALL_SSH}
 
-# Установка базовых инструментов
+# Установка базовых инструментов и зависимостей для Poetry
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl \
+    curl gcc \
     && rm -rf /var/lib/apt/lists/*
 
 # Условная установка инструментов разработки
@@ -48,14 +29,20 @@ RUN if [ "$INSTALL_SSH" = "true" ]; then \
 
 WORKDIR /src
 
-# Копирование requirements.txt из builder
-COPY --from=builder /build/requirements.txt .
+# Установка Poetry
+RUN pip install --no-cache-dir poetry
 
-# Установка зависимостей
-RUN pip install --no-cache-dir -r requirements.txt
+# Копирование файлов зависимостей
+COPY pyproject.toml poetry.lock README.md ./
 
 # Копирование исходного кода
 COPY src/ ./
+
+# Настройка Poetry для установки в системный Python
+RUN poetry config virtualenvs.create false
+
+# Установка зависимостей через Poetry
+RUN poetry install --only main --no-interaction
 
 # Копирование и настройка entrypoint
 COPY entrypoint.sh /entrypoint.sh

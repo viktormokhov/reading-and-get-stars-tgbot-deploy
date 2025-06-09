@@ -6,15 +6,19 @@ WORKDIR /app
 ARG NODE_DEV_MODE=false
 ARG INSTALL_DEV_TOOLS=false
 
-# Копирование только файлов зависимостей
+# Копирование файлов зависимостей
 COPY package.json package-lock.json ./
 
 # Установка зависимостей с учетом режима
 RUN npm install -g npm@latest && \
+    npm config set fetch-retry-mintimeout 20000 && \
+    npm config set fetch-retry-maxtimeout 120000 && \
+    npm config set fetch-retries 5 && \
+    npm config set registry https://registry.npmjs.org/ && \
     if [ "$NODE_DEV_MODE" = "true" ]; then \
-        npm install; \
+        npm install --no-strict-ssl --legacy-peer-deps --prefer-offline --network-timeout=300000; \
     else \
-        npm install --only=production; \
+        npm install --only=production --no-strict-ssl --legacy-peer-deps --prefer-offline --network-timeout=300000; \
     fi
 
 # Этап сборки (только для production)

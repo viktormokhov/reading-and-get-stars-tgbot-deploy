@@ -131,7 +131,7 @@ services:
       - 8.8.8.8
     volumes:
       # Опциональное монтирование исходного кода для разработки
-      - ${BACKEND_MOUNT_SRC:-/dev/null}:/src:${BACKEND_MOUNT_MODE:-ro}
+      - ${BACKEND_MOUNT_SRC:-./empty-dir}:/src:${BACKEND_MOUNT_MODE:-ro}
     logging:
       driver: "json-file"
       options:
@@ -184,8 +184,8 @@ services:
       - "${FRONTEND_EXPOSE_PORT:-127.0.0.1}:3000:3000"
     volumes:
       # Монтирование исходного кода только в режиме разработки
-      - ${FRONTEND_MOUNT_SRC:-/dev/null}:/app/src:${FRONTEND_MOUNT_MODE:-ro}
-      - ${FRONTEND_MOUNT_PUBLIC:-/dev/null}:/app/public:${FRONTEND_MOUNT_MODE:-ro}
+      - ${FRONTEND_MOUNT_SRC:-./empty-dir}:/app/src:${FRONTEND_MOUNT_MODE:-ro}
+      - ${FRONTEND_MOUNT_PUBLIC:-./empty-dir}:/app/public:${FRONTEND_MOUNT_MODE:-ro}
       # Не затирать node_modules контейнера
       - /app/node_modules
     logging:

@@ -3,6 +3,14 @@
 # Скрипт для восстановления баз данных и хранилища MinIO из резервных копий
 # Использование: ./restore.sh [путь_к_бэкапу_postgres] [путь_к_бэкапу_mongo] [путь_к_бэкапу_redis] [путь_к_бэкапу_minio]
 
+# Определение пути к корневой директории проекта
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
+
+# Переход в корневую директорию проекта
+cd "$PROJECT_ROOT"
+echo "Рабочая директория: $(pwd)"
+
 # Проверка аргументов
 if [ $# -lt 1 ]; then
     echo "Использование: $0 [путь_к_бэкапу_postgres] [путь_к_бэкапу_mongo] [путь_к_бэкапу_redis] [путь_к_бэкапу_minio]"
@@ -64,7 +72,7 @@ if [ ! -z "$POSTGRES_BACKUP" ]; then
 
     # Остановка зависимых сервисов
     echo "Остановка зависимых сервисов..."
-    docker-compose stop backend frontend
+    docker compose stop backend frontend
 
     # Восстановление
     cat "$POSTGRES_BACKUP" | docker exec -i $POSTGRES_CONTAINER psql -U $POSTGRES_USER
@@ -77,7 +85,7 @@ if [ ! -z "$POSTGRES_BACKUP" ]; then
 
     # Запуск зависимых сервисов
     echo "Запуск зависимых сервисов..."
-    docker-compose start backend frontend
+    docker compose start backend frontend
 fi
 
 # Восстановление MongoDB
@@ -87,7 +95,7 @@ if [ ! -z "$MONGO_BACKUP" ]; then
 
     # Остановка зависимых сервисов
     echo "Остановка зависимых сервисов..."
-    docker-compose stop backend frontend
+    docker compose stop backend frontend
 
     # Восстановление
     docker exec -i $MONGO_CONTAINER mongorestore --username $MONGO_INITDB_ROOT_USERNAME --password $MONGO_INITDB_ROOT_PASSWORD --authenticationDatabase admin --drop "$MONGO_BACKUP"
@@ -100,7 +108,7 @@ if [ ! -z "$MONGO_BACKUP" ]; then
 
     # Запуск зависимых сервисов
     echo "Запуск зависимых сервисов..."
-    docker-compose start backend frontend
+    docker compose start backend frontend
 fi
 
 # Восстановление Redis
@@ -110,14 +118,14 @@ if [ ! -z "$REDIS_BACKUP" ]; then
 
     # Остановка Redis
     echo "Остановка Redis..."
-    docker-compose stop redis
+    docker compose stop redis
 
     # Копирование файла RDB в контейнер
     docker cp "$REDIS_BACKUP" $REDIS_CONTAINER:/data/dump.rdb
 
     # Запуск Redis
     echo "Запуск Redis..."
-    docker-compose start redis
+    docker compose start redis
 
     echo "Redis успешно восстановлен"
 fi

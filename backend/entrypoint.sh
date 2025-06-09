@@ -79,11 +79,8 @@ else
     echo "DEV_MODE включен, приложение запускается в режиме разработки..."
     # В режиме разработки можно запустить с автоперезагрузкой
     if [ "$RUN_APP_IN_DEV" = "true" ]; then
-        echo "Запуск uvicorn с автоперезагрузкой..."
-        uvicorn main:app --host 0.0.0.0 --port 8000 --reload
-    else
-        echo "Приложение не запускается автоматически в режиме разработки."
-        echo "Для запуска вручную используйте: uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
-        tail -f /dev/null
+      echo "DEV_MODE включен, приложение не запускается автоматически."
+      echo "Для запуска вручную используйте: uvicorn main:app --host 0.0.0.0 --port 8000 --reload"
+      tail -f /dev/null
     fi
 fi
