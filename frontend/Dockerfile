@@ -6,6 +6,8 @@ ARG NODE_DEV_MODE=false
 ENV NODE_DEV_MODE=${NODE_DEV_MODE}
 
 COPY package.json package-lock.json ./
+
+RUN npm install -g npm@latest
 RUN npm install
 
 COPY . .

@@ -95,6 +95,7 @@ services:
 
   backend:
     build: ./backend
+    working_dir: /src
     env_file:
       - .env
     environment:

@@ -5,3 +5,4 @@
 /nginx/certs/privkey.pem
 /.env
 /.idea/
+/docker_ssh_setup.md

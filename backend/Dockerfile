@@ -9,16 +9,13 @@ WORKDIR /src
 RUN pip install poetry
 
 COPY pyproject.toml poetry.lock README.md ./
-COPY core ./core
-COPY api ./api
-COPY bot ./bot
-COPY config ./config
+
+COPY src/* ./
+
+COPY entrypoint.sh /entrypoint.sh
 
 RUN poetry config virtualenvs.create false \
     && poetry install --no-interaction --no-ansi --only main
 
-COPY . .
-
-COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 ENTRYPOINT ["/entrypoint.sh"]
